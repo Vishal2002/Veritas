@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <h1>🛡️ Veritas</h1>
+  <p>AI-Powered Fact Checking</p>
+  
+  <label for="apiKey">Cerebras API Key:</label>
+  <input type="password" id="apiKey" placeholder="sk-...">
+  <button id="saveBtn">Save</button>
+  
+  <button id="analyzeBtn">Analyze Current Page</button>
+  
+  <div id="autoAnalyzeToggle">
+    <label>
+      <input type="checkbox" id="autoAnalyze"> Auto-analyze on load
+    </label>
+  </div>
+
+  <script type="module" src="popup.ts"></script>
+</body>
+</html>
