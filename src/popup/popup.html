@@ -1,23 +1,49 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <meta charset="utf-8">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Veritas - AI Fact Checker</title>
   <link rel="stylesheet" href="popup.css">
 </head>
 <body>
-  <h1>🛡️ Veritas</h1>
-  <p>AI-Powered Fact Checking</p>
+  <div class="popup-container">
+    <h1>🛡️ Veritas</h1>
+    <p>AI-Powered Fact Checking</p>
+    
+    <div class="settings">
+      <label for="apiKey">Cerebras API Key:</label>
+      <input 
+        type="password" 
+        id="apiKey" 
+        placeholder="csk-..."
+        autocomplete="off"
+      >
+      <button id="saveBtn">💾 Save API Key</button>
+      
+      <div class="api-help">
+        📝 Get your free API key at 
+        <a href="https://cloud.cerebras.ai" target="_blank">cloud.cerebras.ai</a>
+      </div>
+    </div>
+    
+    <button id="analyzeBtn">🔍 Analyze Current Page</button>
+    
+    <div id="autoAnalyzeToggle">
+      <label>
+        <input type="checkbox" id="autoAnalyze" checked>
+        <span>Auto-analyze pages on load</span>
+      </label>
+    </div>
+  </div>
   
-  <label for="apiKey">Cerebras API Key:</label>
-  <input type="password" id="apiKey" placeholder="sk-...">
-  <button id="saveBtn">Save</button>
-  
-  <button id="analyzeBtn">Analyze Current Page</button>
-  
-  <div id="autoAnalyzeToggle">
-    <label>
-      <input type="checkbox" id="autoAnalyze"> Auto-analyze on load
-    </label>
+  <div class="veritas-hints">
+    <small>
+      💡 <strong>Tips:</strong><br>
+      • Press ESC to close analysis on any page<br>
+      • Click the X button to dismiss results<br>
+      • Cached results are stored for 1 hour
+    </small>
   </div>
 
   <script type="module" src="popup.ts"></script>
