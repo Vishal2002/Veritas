@@ -6,13 +6,13 @@ import "./content.css";
 let highlightedElements: HTMLElement[] = [];
 let currentArticle: Article | null = null;
 let currentIndicator: HTMLElement | null = null;
+let isAnalyzing = false;
 
 // Extract article content from page
 function extractArticle(): Article {
   const title = document.querySelector('h1')?.innerText || document.title;
   const url = window.location.href;
   
-  // Try to get main content (adjust selectors for different sites)
   const contentSelectors = [
     'article',
     '[role="article"]',
@@ -35,7 +35,6 @@ function extractArticle(): Article {
 
 // Highlight suspicious sentences
 function highlightSentences(content: string, reasons: string[]) {
-  // Clear previous highlights
   highlightedElements.forEach(el => {
     el.style.backgroundColor = '';
     el.title = '';
@@ -64,10 +63,9 @@ function removeIndicator() {
     setTimeout(() => {
       currentIndicator?.remove();
       currentIndicator = null;
-    }, 300); // Match animation duration
+    }, 300);
   }
   
-  // Clear highlights
   highlightedElements.forEach(el => {
     el.style.backgroundColor = '';
     el.title = '';
@@ -75,10 +73,79 @@ function removeIndicator() {
   highlightedElements = [];
 }
 
-// Create floating indicator with close button
-function createIndicator(result: AnalysisResult) {
-  // Remove old indicator
+// Show loading indicator
+function showLoadingIndicator() {
   removeIndicator();
+  
+  const indicator = document.createElement('div');
+  indicator.id = 'veritas-indicator';
+  indicator.className = 'veritas-indicator veritas-loading';
+  
+  indicator.innerHTML = `
+    <button class="veritas-close" aria-label="Close" title="Close"></button>
+    <div class="veritas-header">
+      <span class="veritas-icon">🛡️</span>
+      <span class="veritas-title">Veritas Check</span>
+    </div>
+    <div class="veritas-loading-container">
+      <div class="veritas-spinner"></div>
+      <div class="veritas-loading-text">Analyzing article...</div>
+      <div class="veritas-loading-subtext">Checking for misinformation and bias</div>
+    </div>
+  `;
+  
+  document.body.appendChild(indicator);
+  currentIndicator = indicator;
+  
+  const closeBtn = indicator.querySelector('.veritas-close');
+  closeBtn?.addEventListener('click', () => {
+    removeIndicator();
+    isAnalyzing = false;
+  });
+}
+
+// Show error indicator
+function showErrorIndicator(errorMessage: string) {
+  removeIndicator();
+  
+  const indicator = document.createElement('div');
+  indicator.id = 'veritas-indicator';
+  indicator.className = 'veritas-indicator veritas-error';
+  
+  indicator.innerHTML = `
+    <button class="veritas-close" aria-label="Close" title="Close"></button>
+    <div class="veritas-header">
+      <span class="veritas-icon">⚠️</span>
+      <span class="veritas-title">Analysis Failed</span>
+    </div>
+    <div class="veritas-error-content">
+      <div class="veritas-error-message">${errorMessage}</div>
+      <button class="veritas-retry-btn" id="veritasRetry">
+        🔄 Retry Analysis
+      </button>
+    </div>
+  `;
+  
+  document.body.appendChild(indicator);
+  currentIndicator = indicator;
+  
+  const closeBtn = indicator.querySelector('.veritas-close');
+  closeBtn?.addEventListener('click', removeIndicator);
+  
+  const retryBtn = indicator.querySelector('#veritasRetry');
+  retryBtn?.addEventListener('click', () => {
+    if (currentArticle) {
+      startAnalysis(currentArticle);
+    }
+  });
+  
+  isAnalyzing = false;
+}
+
+// Create result indicator
+function createIndicator(result: AnalysisResult) {
+  removeIndicator();
+  isAnalyzing = false;
 
   const indicator = document.createElement('div');
   indicator.id = 'veritas-indicator';
@@ -92,6 +159,9 @@ function createIndicator(result: AnalysisResult) {
     </div>
     <div class="veritas-score">${result.score}/100</div>
     <div class="veritas-verdict">${result.verdict.toUpperCase()}</div>
+    <div class="veritas-confidence">
+      Confidence: ${Math.round(result.confidence * 100)}%
+    </div>
     <div class="veritas-reasons">
       ${result.reasons.map(r => `<div>• ${r}</div>`).join('')}
     </div>
@@ -110,14 +180,45 @@ function createIndicator(result: AnalysisResult) {
   document.body.appendChild(indicator);
   currentIndicator = indicator;
   
-  // Add close button functionality
   const closeBtn = indicator.querySelector('.veritas-close');
   closeBtn?.addEventListener('click', removeIndicator);
 
-  // Highlight if questionable/unreliable
   if (result.verdict !== 'credible' && currentArticle) {
     highlightSentences(currentArticle.content, result.reasons);
   }
+}
+
+// Start analysis with timeout
+function startAnalysis(article: Article) {
+  if (isAnalyzing) {
+    console.log('Analysis already in progress');
+    return;
+  }
+  
+  isAnalyzing = true;
+  showLoadingIndicator();
+  
+  // Set timeout for analysis (30 seconds)
+  const timeout = setTimeout(() => {
+    if (isAnalyzing) {
+      showErrorIndicator('Analysis timed out. The API might be slow or unavailable. Please try again.');
+    }
+  }, 30000);
+  
+  // Send to background for API analysis
+  chrome.runtime.sendMessage({ action: 'analyze', article }, (response) => {
+    clearTimeout(timeout);
+    
+    if (chrome.runtime.lastError) {
+      console.error('Message error:', chrome.runtime.lastError);
+      showErrorIndicator('Connection error. Please refresh the page and try again.');
+      return;
+    }
+    
+    if (!response?.success) {
+      showErrorIndicator('Failed to start analysis. Check if your API key is configured.');
+    }
+  });
 }
 
 // Listen for messages
@@ -125,19 +226,20 @@ chrome.runtime.onMessage.addListener((request, _sender, sendResponse) => {
   if (request.action === 'showResult') {
     createIndicator(request.result);
     sendResponse({ success: true });
+  } else if (request.action === 'showError') {
+    showErrorIndicator(request.error || 'Analysis failed. Please try again.');
+    sendResponse({ success: true });
   } else if (request.action === 'analyze') {
     currentArticle = extractArticle();
     
-    // Quick local check first (optional feedback)
-    const localResult = localAnalyzer(currentArticle);
-    if (localResult.score < 50) {
-      createIndicator({
-        ...localResult,
-        reasons: ['Analyzing...', ...localResult.reasons]
-      });
+    // Check if content is substantial
+    if (currentArticle.content.length < 300) {
+      showErrorIndicator('Article content too short to analyze reliably.');
+      sendResponse({ success: false });
+      return true;
     }
     
-    chrome.runtime.sendMessage({ action: 'analyze', article: currentArticle });
+    startAnalysis(currentArticle);
     sendResponse({ success: true });
   } else if (request.action === 'closeIndicator') {
     removeIndicator();
@@ -146,34 +248,33 @@ chrome.runtime.onMessage.addListener((request, _sender, sendResponse) => {
   return true;
 });
 
-// Auto-analyze on load (configurable)
+// Auto-analyze on load
 chrome.storage.sync.get(['autoAnalyze'], (result) => {
   if (result.autoAnalyze !== false) {
     const analyzeOnLoad = () => {
-      currentArticle = extractArticle();
-      
-      // Only analyze if content is substantial
-      if (currentArticle.content.length > 300) {
-        chrome.runtime.sendMessage({ 
-          action: 'analyze', 
-          article: currentArticle 
-        });
-      }
+      // Wait a bit for page to fully load
+      setTimeout(() => {
+        currentArticle = extractArticle();
+        
+        if (currentArticle.content.length > 300) {
+          startAnalysis(currentArticle);
+        }
+      }, 1000); // 1 second delay
     };
     
     if (document.readyState === 'loading') {
       window.addEventListener('load', analyzeOnLoad);
     } else {
-      // Page already loaded
       analyzeOnLoad();
     }
   }
 });
 
-// Keyboard shortcut: ESC to close
+// Keyboard shortcuts
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && currentIndicator) {
     removeIndicator();
+    isAnalyzing = false;
   }
 });
 
