@@ -1,12 +1,11 @@
 {
     "manifest_version": 3,
     "name": "Veritas - AI Fact Checker",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "description": "Real-time fake news detection powered by AI",
     "permissions": [
       "activeTab",
-      "storage",
-      "scripting"
+      "storage"
     ],
     "host_permissions": [
       "http://*/*",

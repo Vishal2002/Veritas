@@ -1,6 +1,5 @@
 // src/content/content.ts
 import type { Article, AnalysisResult } from "../types/index"; 
-import { localAnalyzer } from "../utils/analyzer"; 
 import "./content.css";
 
 let highlightedElements: HTMLElement[] = [];
